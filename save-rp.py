@@ -8,8 +8,8 @@ import ccxt.async_support as ccxt
 exchange = getattr(ccxt, sys.argv[1])({})
 out = open(f'{exchange.name}.replay', 'a')
 
-obs = []
-tis = []
+prevob = {}
+prevti = {}
 
 async def main():
     await exchange.load_markets()
@@ -21,12 +21,12 @@ async def main():
             for k in list(book.keys()):
                 if not k == 'asks' and not k == 'bids':
                     del book[k]
-            obs.append(book)
+            prevob[s] = book
             out.write(f"BASEDATA {s} OB {json.dumps(book)}\n")
         except ccxt.ExchangeError:
             print('failed to fetch ob for ' + s)
         ticker = await exchange.fetch_ticker(s)
-        tis.append(ticker)
+        prevti[s] = book
         out.write(f"BASEDATA {s} TI {json.dumps(ticker)}\n")
 
     for c in exchange.currencies:
@@ -37,27 +37,40 @@ async def main():
             try:
                 book = await exchange.fetch_order_book(m)
                 timestamp = 0
+                datetime = book['datetime']
+                nonce = book['nonce']
 
                 if book['timestamp']:
                     timestamp = book['timestamp']
                 else:
                     timestamp = int(time.time()) * 1000
 
-                if not book in obs:
-                    obs.append(book)
+                del book['timestamp']
+                del book['datetime']
+                del book['nonce']
+                if not book == prevob[m]:
+                    prevob[m] = book
+                    book['timestamp'] = timestamp
+                    book['datetime'] = datetime
+                    book['nonce'] = nonce
                     out.write(f"{timestamp} {m} OB {json.dumps(book)}\n")
 
                 ticker = await exchange.fetch_ticker(m)
-
+                datetime = ticker['datetime']
                 if ticker['timestamp']:
                     timestamp = ticker['timestamp']
                 else:
                     timestamp = int(time.time()) * 1000
 
-                if not ticker in tis:
-                    tis.append(ticker)
+                del ticker['timestamp']
+                del ticker['datetime']
+
+                if not ticker == prevti[m]:
+                    prevti[m] = ticker
+                    ticker['timestamp'] = timestamp
+                    ticker['datetime'] = datetime
                     out.write(f"{timestamp} {m} TI {json.dumps(ticker)}\n")
-            except ccxt.ExchangeError:
+            except Exception:
                 pass
     await exchange.close()
 

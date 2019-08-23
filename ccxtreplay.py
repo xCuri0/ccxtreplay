@@ -9,7 +9,7 @@ class Replay:
 
         self.markets = {}
         self.symbols = []
-        self.currencies = []
+        self.currencies = {}
         self.timestamp = 0
 
     def __iter__(self):
